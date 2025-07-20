@@ -4,9 +4,7 @@ This script helps Toastmasters clubs easily convert their EasySpeak meeting agen
 
 ---
 
-## How to Use This Script
-
-Follow these steps to get the script running on your computer. You don't need to be a technical expert to do this!
+## Installation (Only Once)
 
 ### Step 1: Download Python
 
@@ -82,7 +80,7 @@ The script uses a few extra tools (libraries) that need to be installed. We've p
 
 ---
 
-### Step 4: Run the Script
+## Run the script (every week)
 
 Now you're ready to run the `easyspeak.py` script!
 
@@ -98,34 +96,20 @@ Now you're ready to run the `easyspeak.py` script!
         python3 easyspeak.py
         ```
 
-3.  **Follow the prompts:** The script will ask you for two things:
-    * **"Enter the EasySpeak agenda URL:"** Go to your club's EasySpeak agenda page in your web browser (e.g., `https://easyspeak.org/agenda.php?c=XXXX&t=XXXX&...`). Copy the full URL from your browser's address bar and paste it into the command prompt/terminal, then press Enter.
-    * **"Paste the Cookie string from your browser's developer tools:"** This step requires a little more detail, as EasySpeak requires you to be logged in to access the agenda.
-        * **How to get the Cookie string (the easiest way):**
-            1.  Open your EasySpeak agenda page in your web browser (Chrome, Firefox, Edge, etc.) and make sure you are logged in.
-            2.  Right-click anywhere on the page and select "Inspect" or "Inspect Element" to open the browser's developer tools.
-            3.  Go to the "Console" tab within the developer tools.
-            4.  In the console, type the following command and press Enter:
-                ```javascript
-                copy(document.cookie)
-                ```
-            5.  This command will copy the entire cookie string to your clipboard.
-            6.  Paste this entire cookie string into your command prompt/terminal where the script is asking for it, then press Enter.
+3.  **Follow the prompts:** 
+4.  Find the agenda page of your meeting in EasySPeak.
 
-4.  **Wait for the script to finish:** The script will fetch the agenda, process it, and then tell you:
+5.  **Wait for the script to finish:** The script will fetch the agenda, process it, and then tell you:
     * "Presentation successfully created at: presentation.odp"
     * "Updating the forms"
 
-    You will find a new file named `presentation.odp` in the same folder where your script is located. This is your updated presentation! The script will also attempt to update relevant Google Forms if those features are configured.
+    You will find a new file named `presentation.odp` in the same folder where your script is located. This is your updated presentation! The script will also attempt to update relevant Google Forms for voting and feedback.
 
 ---
 
 ## Troubleshooting
 
 * **"Error: Template file not found at 'template.odp'"**: Make sure the `template.odp` file is in the same folder as `easyspeak.py`. It should have been downloaded with the other script files.
-* **"An error occurred while fetching the URL: ..."**: This often means there's an issue with the URL you entered or the Cookie string you provided.
-    * Double-check that the EasySpeak agenda URL is correct.
-    * Make sure you copied the **entire** cookie string and that it's still valid (cookies can expire). Try getting a fresh cookie string if you encounter this error.
 * **Permissions errors during installation**: If you see "Permission denied" errors during Step 3, try running the command with `sudo` on Mac/Linux (e.g., `sudo pip3 install -r requirements.txt`) or by opening your command prompt as an administrator on Windows.
 * **Python not found**: If commands like `py` or `python3` don't work, go back to Step 1 and ensure Python was installed correctly, especially checking the "Add python.exe to PATH" box on Windows.
 

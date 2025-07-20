@@ -8,7 +8,7 @@ import zipfile
 import os
 import shutil
 from datetime import datetime
-
+import html 
 
 # Your existing dataclasses remain the same.
 @dataclass
@@ -123,13 +123,19 @@ def scrape_easyspeak_agenda(html_content: str) -> ToastmastersMeeting:
             # Check if this row is a main agenda item row (e.g., has a time and enough cells)
             time_span_in_first_cell = cells[0].find('span', class_='gensmall') if cells and len(cells) > 0 else None
 
-            # The condition for a main agenda row: must have at least 5 cells and a time in the first cell
-            if len(cells) < 5 or not (
-                    time_span_in_first_cell and re.match(r'\d{1,2}:\d{2}', time_span_in_first_cell.text.strip())):
+            # A valid agenda row should have at least 5 cells.
+            # Time is optional — it may be blank if grouped under a previous item (like for multiple evaluations).
+            if len(cells) < 5:
                 i += 1
-                continue  # Not a primary agenda row, skip to next iteration
+                continue
 
-            time_slot = time_span_in_first_cell.text.strip()
+            # Get the time if available
+            time_slot = ""
+            if time_span_in_first_cell and re.match(r'\d{1,2}:\d{2}', time_span_in_first_cell.text.strip()):
+                time_slot = time_span_in_first_cell.text.strip()
+            else:
+                # Inherit time from previous agenda item if blank
+                time_slot = agenda_items[-1].time if agenda_items else "TBA"
             role = cells[1].find('span', class_='gen').text.strip() if cells[1].find('span', class_='gen') else ""
             presenter = cells[2].find('span', class_='gen').text.strip() if cells[2].find('span', class_='gen') else ""
 
@@ -151,8 +157,8 @@ def scrape_easyspeak_agenda(html_content: str) -> ToastmastersMeeting:
 
             # If it's a speaker, extract project and detailed description from the next row
             if "Speaker" in role:
-                project = "TBA"  # Default values
-                title = event  # **CRITICAL CHANGE: Speech title comes from the 'event' column**
+                project = "TBA"  
+                title = event  
                 description = ""
 
                 speaker_detail_row = None
@@ -162,58 +168,25 @@ def scrape_easyspeak_agenda(html_content: str) -> ToastmastersMeeting:
                 potential_next_rows = rows[i + 1:]  # Get all rows after the current one
 
                 for potential_row in potential_next_rows:
-                    # DEBUG: Inspect each potential detail row
-                    print(f"\nDEBUG: --- Checking potential detail row for '{presenter}' ---")
-                    print(f"DEBUG: Potential row HTML: {potential_row}")
-                    detail_cells = potential_row.find_all('td')
-                    print(f"DEBUG: Number of cells in potential row: {len(detail_cells)}")
-                    if len(detail_cells) > 0:
-                        print(f"DEBUG: First cell (index 0) attrs: {detail_cells[0].attrs}")
-                    if len(detail_cells) > 1:
-                        print(f"DEBUG: Second cell (index 1) attrs: {detail_cells[1].attrs}")
-
-                    # The target detail row has a specific <td> with colspan="3" and align="left"
-                    # This is where the Pathways project and description are.
                     target_td = potential_row.find('td', {'colspan': '3', 'align': 'left'})
 
                     if target_td:
                         speaker_detail_row = potential_row
-                        break  # Found the correct detail row
-
-                # DEBUG: Print if speaker_detail_row was identified correctly.
-                print(
-                    f"\nDEBUG: Is '{presenter}' a speaker with identified detail row? {speaker_detail_row is not None}.")
-                if speaker_detail_row:
-                    print(f"DEBUG: Final identified speaker_detail_row HTML:\n{speaker_detail_row}")
-                else:
-                    print(f"DEBUG: No valid speaker_detail_row found after '{presenter}' row for a speaker.")
+                        break  
 
                 if speaker_detail_row:
                     # The project/description is in the <td> with colspan="3" and align="left"
                     project_desc_td = speaker_detail_row.find('td', {'colspan': '3', 'align': 'left'})
 
-                    # DEBUG: Print if project_desc_td was found
-                    print(f"DEBUG: project_desc_td found: {project_desc_td is not None}")
-                    if project_desc_td:
-                        print(f"DEBUG: project_desc_td HTML:\n{project_desc_td}")
 
                     if project_desc_td:
                         # Find the span directly within this td
                         project_desc_span = project_desc_td.find('span', class_='gensmall', valign="top")
 
-                        # DEBUG: Print if project_desc_span was found
-                        print(f"DEBUG: project_desc_span found: {project_desc_span is not None}")
-                        if project_desc_span:
-                            print(f"DEBUG: project_desc_span HTML:\n{project_desc_span}")
-
                         if project_desc_span:
                             # The project line itself is inside an <i> tag (e.g., Pathways project)
                             i_tag = project_desc_span.find('i')
 
-                            # DEBUG: Print if i_tag was found
-                            print(f"DEBUG: i_tag found: {i_tag is not None}")
-                            if i_tag:
-                                print(f"DEBUG: i_tag text: {i_tag.text.strip()}")
 
                             if i_tag:
                                 full_project_line = i_tag.text.strip()
@@ -222,8 +195,6 @@ def scrape_easyspeak_agenda(html_content: str) -> ToastmastersMeeting:
                                 # The 'description' is the rest of the text in the span, after the i_tag.
                                 project_parts = full_project_line.split(' - ', 1)
                                 project = project_parts[0].strip()
-                                # DEBUG: Print extracted project
-                                print(f"DEBUG: Extracted Project: '{project}'")
 
                                 # The description includes all subsequent text nodes within the span, separated by <br>
                                 desc_lines = []
@@ -233,18 +204,8 @@ def scrape_easyspeak_agenda(html_content: str) -> ToastmastersMeeting:
                                     # or a short description of the Pathways objective.
                                     desc_lines.append(project_parts[1].strip())
 
-                                current_elem = i_tag.next_sibling
-                                while current_elem:
-                                    if isinstance(current_elem, NavigableString) and current_elem.strip():
-                                        desc_lines.append(current_elem.strip())
-                                    elif isinstance(current_elem, Tag) and current_elem.name == 'br':
-                                        pass  # Just a line break, don't add to description content
-                                    current_elem = current_elem.next_sibling
-
                                 # Combine all description parts, filtering out empty strings
                                 description = " ".join([line for line in desc_lines if line]).strip()
-                                # DEBUG: Print extracted description
-                                print(f"DEBUG: Extracted Description: '{description}'")
 
                             else:  # If no <i> tag is found within the span (e.g., a custom speech not tied to Pathways)
                                 all_strings_in_span = [s.strip() for s in project_desc_span.stripped_strings if
@@ -256,26 +217,15 @@ def scrape_easyspeak_agenda(html_content: str) -> ToastmastersMeeting:
                                 else:
                                     project = "N/A (No Pathways Info)"
                                     description = ""
-                                # DEBUG: Fallback (no <i> tag) Project: {project}, Description: {description}
-                                print(
-                                    f"DEBUG: Fallback (no <i> tag) Project: '{project}', Description: '{description}'")
                         else:
                             project = "TBA"
                             description = ""
-                            # DEBUG: print("DEBUG: project_desc_span not found. Project/Description set to TBA/empty.")
-                            print("DEBUG: project_desc_span not found. Project/Description set to TBA/empty.")
                     else:
                         project = "TBA"
                         description = ""
-                        # DEBUG: print("DEBUG: project_desc_td not found in speaker_detail_row. Project/Description set to TBA/empty.")
-                        print(
-                            "DEBUG: project_desc_td not found in speaker_detail_row. Project/Description set to TBA/empty.")
                 else:  # No valid speaker_detail_row found at all
                     project = "TBA"
                     description = ""
-                    # DEBUG: print("DEBUG: No valid speaker_detail_row found after speaker. Project/Description set to TBA/empty.")
-                    print(
-                        "DEBUG: No valid speaker_detail_row found after speaker. Project/Description set to TBA/empty.")
 
                 # Add the speaker information to the speakers list
                 speakers.append(
@@ -407,7 +357,7 @@ def update_odp_presentation(template_path: str, output_path: str, meeting_data: 
 
         # 3. Perform the text replacements
         for old_text, new_text in replacements.items():
-            content_xml = content_xml.replace(old_text, new_text)
+            content_xml = content_xml.replace(old_text, html.escape(new_text))
 
         # 4. Write the modified content back to content.xml
         with open(content_xml_path, 'w', encoding='utf-8') as f:
@@ -447,56 +397,61 @@ def update_forms(meeting_data: ToastmastersMeeting):
     res = requests.post(evaluator_form, json={"options": evaluators})
 
 
-# --- Main execution ---
 if __name__ == "__main__":
-    # 1. Get user input for agenda URL and cookie
-    agenda_url = input("Enter the EasySpeak agenda URL: ")
-    cookie_string = input("Paste the Cookie string from your browser's developer tools: ")
+    print("=== EasySpeak Agenda Parser ===\n")
 
-    # Hardcoded file names for simplicity. The script will look for 'template.odp'
-    # in the same directory and create/overwrite 'presentation.odp'.
+    print("⚠️  EasySpeak has added human verification (like CAPTCHA) to agenda pages.")
+    print("🔧 To work around this, please follow these steps:\n")
+
+    print("➡️  1. Open the agenda page in your browser.")
+    print("➡️  2. Open Developer Tools (F12), go to the Console tab.")
+    print("➡️  3. Run this command to copy the full HTML:\n")
+    print("       copy(document.documentElement.outerHTML);\n")
+    print("➡️  4. Paste the copied HTML below (right-click or Ctrl+V).")
+    print("       When you're done, type `END` on a new line and press Enter.\n")
+
+    # Read multiline HTML input until 'END' is typed
+    html_lines = []
+    while True:
+        line = input()
+        if line.strip() == "END":
+            break
+        html_lines.append(line)
+
+    html_content = "\n".join(html_lines)
+
+    if not html_content.strip():
+        print("❌ No HTML content provided. Exiting.")
+        exit(1)
+
+    # Hardcoded file names
     template_file = "template.odp"
     output_file = "presentation.odp"
 
-    if not all([agenda_url, cookie_string]):
-        print("URL and cookie string are required. Exiting.")
-    else:
-        # 2. Set up headers for the web request
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Cookie': cookie_string
-        }
+    try:
+        agenda_object = scrape_easyspeak_agenda(html_content)
 
-        try:
-            # 3. Fetch and scrape the agenda
-            print("\nFetching agenda from URL...")
-            response = requests.get(agenda_url, headers=headers)
-            response.raise_for_status()
-            agenda_object = scrape_easyspeak_agenda(response.text)
+        # Print role assignments
+        roles_presenters_time = get_roles_and_presenters(agenda_object)
+        print("\n--- Roles, Presenters, and Time Frames ---")
+        for role, info in roles_presenters_time.items():
+            print(f"{role}: {info['presenter']} (Min: {info['min_time']}, Max: {info['max_time']})")
 
-            # 4. Extract role information (optional, but kept for general usage)
-            roles_presenters_time = get_roles_and_presenters(agenda_object)
-            print("\n--- Roles, Presenters, and Time Frames to be Inserted ---")
-            for role, info in roles_presenters_time.items():
-                print(f"{role}: {info['presenter']} (Min: {info['min_time']}, Max: {info['max_time']})")
+        # Print speaker data
+        print("\n--- Speaker Information ---")
+        for i, speaker in enumerate(agenda_object.speakers):
+            if i < 3:
+                print(
+                    f"Speaker {i + 1}: {speaker.name}, Project: '{speaker.project}', Title: '{speaker.title}', Description: '{speaker.description}'"
+                )
 
-            # Print Speaker Info that will be added
-            print("\n--- Speaker Information to be Inserted ---")
-            for i, speaker in enumerate(agenda_object.speakers):
-                if i < 3:
-                    print(
-                        f"Speaker {i + 1} Name: {speaker.name}, Project: '{speaker.project}', Title: '{speaker.title}', Description: '{speaker.description}'")
+        print(f"\nMeeting Date: {agenda_object.meeting_info.meeting_date}")
 
-            # Print Meeting Date (now directly from scraped data)
-            print(f"\nMeeting Date (as scraped): {agenda_object.meeting_info.meeting_date}")
+        print(f"\n📤 Generating presentation from '{template_file}'...")
+        update_odp_presentation(template_file, output_file, agenda_object)
 
-            # 5. Update the .odp presentation
-            print(f"\nUsing '{template_file}' to create/overwrite '{output_file}'...")
-            update_odp_presentation(template_file, output_file, agenda_object)  # Pass the full object
-            print(f"\n Updating the forms")
-            update_forms(agenda_object)
+        print("\n🔗 Updating Google Forms...")
+        update_forms(agenda_object)
 
-        except requests.exceptions.RequestException as e:
-            print(f"\nAn error occurred while fetching the URL: {e}")
-        except Exception as e:
-            print(f"\nAn unexpected error occurred: {e}")
+    except Exception as e:
+        print(f"\n❌ An error occurred: {e}")
