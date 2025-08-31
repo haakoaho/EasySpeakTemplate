@@ -377,7 +377,7 @@ def update_pptx_presentation(template_path: str, output_path: str, meeting_data:
     replacements["{{meeting_date}}"] = meeting_data.meeting_info.meeting_date or "N/A"
     replacements["{{next_meeting_date}}"] = meeting_data.meeting_info.next_meeting_date or "N/A"
     replacements["{{word_of_the_day}}"] = meeting_data.meeting_info.word_of_the_day or "N/A"
-    
+    replacements["{{meeting_theme}}"] = meeting_data.meeting_info.meething_theme or "N/A"
 
     roles_presenters_time = get_roles_and_presenters(meeting_data)
     for role_key, info in roles_presenters_time.items():
