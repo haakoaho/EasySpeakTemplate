@@ -1,14 +1,10 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+import datetime
 import requests
 from typing import List, Dict
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup
 import re
-import json
-import zipfile
-import os
-import shutil
-from datetime import datetime
-import html 
+from pptx import Presentation
 
 # Your existing dataclasses remain the same.
 @dataclass
@@ -26,9 +22,9 @@ class TimeSlot:
 class Speaker:
     position: str
     name: str
-    project: str  # This will now contain "Pathway #Level-Project"
-    title: str  # Field for the speech title (from the 'event' column)
-    description: str  # This will contain the detailed description (from the detail row)
+    project: str 
+    title: str  
+    description: str  
     time: str
     duration_green: str
     duration_amber: str
@@ -43,9 +39,12 @@ class MeetingInfo:
     area: str
     club_number: str
     meeting_date: str
+    next_meeting_date: str
     meeting_time: str
     venue: str
     schedule: str
+    word_of_the_day: str
+    meething_theme: str
 
 
 @dataclass
@@ -56,6 +55,72 @@ class ToastmastersMeeting:
     attending_members: List[str]
     next_meeting: str
 
+
+def _get_day_suffix(day):
+    """
+    Helper function to get the correct day suffix for a given day of the month.
+    """
+    if 4 <= day <= 20 or 24 <= day <= 30:
+        return "th"
+    else:
+        return ["st", "nd", "rd"][day % 10 - 1] if day % 10 in [1, 2, 3] else "th"
+
+def next_week(date_string: str) -> str:
+    """
+    Converts a date string in the format "Weekday dayOfMonth month Year"
+    and returns a new date string exactly 7 days in the future.
+
+    Args:
+        date_string: The input date string, e.g., "Tuesday 2nd September 2025".
+
+    Returns:
+        The new date string, 7 days in the future, in the same format.
+    """
+    # Use a regex to remove the ordinal suffix (e.g., 'st', 'nd', 'rd', 'th')
+    # to allow datetime.strptime to parse the string correctly.
+    cleaned_date_string = re.sub(r'(st|nd|rd|th)', '', date_string)
+
+    try:
+        # Parse the cleaned string into a datetime object.
+        # %A: Full weekday name
+        # %d: Day of the month as a zero-padded decimal number
+        # %B: Full month name
+        # %Y: Year with century as a decimal number
+        parsed_date = datetime.datetime.strptime(cleaned_date_string, '%A %d %B %Y')
+    except ValueError as e:
+        return f"Error: Could not parse the date string. Check the format. Details: {e}"
+
+    # Add exactly 7 days to the parsed date.
+    next_week_date = parsed_date + datetime.timedelta(days=7)
+
+    # Get the day of the month from the new date.
+    day = next_week_date.day
+
+    # Get the correct suffix for the new day.
+    suffix = _get_day_suffix(day)
+
+    # Format the new date string with the correct suffix.
+    # We use f-string formatting to insert the day and suffix manually.
+    formatted_date = next_week_date.strftime(f'%A {day}{suffix} %B %Y')
+
+    return formatted_date
+    # Remove ordinal suffix from the day
+    clean_str = (
+        date_str.replace("st", "")
+        .replace("nd", "")
+        .replace("rd", "")
+        .replace("th", "")
+    )
+
+    # Parse date
+    dt = datetime.strptime(clean_str, "%A %d %B %Y")
+
+    # Add 7 days (next Tuesday)
+    next_dt = dt + datetime.timedelta(days=7)
+
+    # Format with ordinal
+    day_with_suffix = add_ordinal(next_dt.day)
+    return next_dt.strftime(f"%A {day_with_suffix} %B %Y")
 
 def scrape_easyspeak_agenda(html_content: str) -> ToastmastersMeeting:
     """
@@ -86,12 +151,18 @@ def scrape_easyspeak_agenda(html_content: str) -> ToastmastersMeeting:
             club_number = parts[3].replace('Club Number ', '')
 
     meeting_date = ""
+    next_meeting_date = ""
+    word_of_the_day = ""
     postbody_spans = soup.find_all('span', class_='postbody')
     for span in postbody_spans:
         date_match = re.search(r'(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+\d+\w*\s+\w+\s+\d{4}',
                                span.text.strip())
+        word_of_the_day_match = re.search(r'(?<=Word of the Day).*?$', span.text)
+        if word_of_the_day_match:
+            word_of_the_day = word_of_the_day_match.group().strip()
         if date_match:
             meeting_date = date_match.group()
+            next_meeting_date = next_week(meeting_date)
             break
 
     meeting_time_elem = soup.find('b', string=re.compile(r'\d{1,2}:\d{2}'))
@@ -106,8 +177,8 @@ def scrape_easyspeak_agenda(html_content: str) -> ToastmastersMeeting:
     schedule_elem = soup.find('span', class_='gensmall', string=re.compile(r'Every'))
     schedule = schedule_elem.text.strip() if schedule_elem else ""
 
-    meeting_info = MeetingInfo(club_name, district, division, area, club_number, meeting_date, meeting_time, venue,
-                               schedule)
+    meeting_info = MeetingInfo(club_name, district, division, area, club_number, meeting_date,next_meeting_date, meeting_time, venue,
+                               schedule, word_of_the_day,"N/A")
 
     # --- Extract Agenda Items and Speakers ---
     agenda_items = []
@@ -290,95 +361,52 @@ def get_roles_and_presenters(meeting_data: ToastmastersMeeting) -> Dict[str, Dic
         }
     return roles_info
 
-
-def update_odp_presentation(template_path: str, output_path: str, meeting_data: ToastmastersMeeting):
+def update_pptx_presentation(template_path: str, output_path: str, meeting_data: ToastmastersMeeting):
     """
-    Updates a LibreOffice Impress (.odp) presentation by replacing placeholders.
-    An .odp file is a zip archive containing XML files. The main content is in 'content.xml'.
-    This function extracts the archive, replaces text in content.xml, and re-zips it.
-
+    Updates a PowerPoint (.pptx) presentation by replacing placeholders.
     Args:
-        template_path: Path to the template .odp file.
-        output_path: Path to save the updated .odp file.
+        template_path: Path to the template .pptx file.
+        output_path: Path to save the updated .pptx file.
         meeting_data: The ToastmastersMeeting dataclass object containing all scraped data.
     """
-    if not os.path.exists(template_path):
-        print(f"Error: Template file not found at '{template_path}'")
-        return
+    prs = Presentation(template_path)
 
-    # Create a temporary directory for manipulation
-    temp_dir = "odp_temp"
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-    os.makedirs(temp_dir)
+    # Prepare replacements
+    replacements = {}
 
-    try:
-        # 1. Unzip the .odp template file
-        with zipfile.ZipFile(template_path, 'r') as zip_ref:
-            zip_ref.extractall(temp_dir)
+    replacements["{{meeting_date}}"] = meeting_data.meeting_info.meeting_date or "N/A"
+    replacements["{{next_meeting_date}}"] = meeting_data.meeting_info.next_meeting_date or "N/A"
+    replacements["{{word_of_the_day}}"] = meeting_data.meeting_info.word_of_the_day or "N/A"
+    
 
-        # 2. Read the content.xml file
-        content_xml_path = os.path.join(temp_dir, "content.xml")
-        if not os.path.exists(content_xml_path):
-            print("Error: content.xml not found in the template.")
-            return
+    roles_presenters_time = get_roles_and_presenters(meeting_data)
+    for role_key, info in roles_presenters_time.items():
+        replacements[f"{{{{{role_key}_Presenter}}}}"] = info.get("presenter", "N/A")
+        replacements[f"{{{{{role_key}_Min}}}}"] = info.get("min_time", "N/A")
+        replacements[f"{{{{{role_key}_Max}}}}"] = info.get("max_time", "N/A")
 
-        with open(content_xml_path, 'r', encoding='utf-8') as f:
-            content_xml = f.read()
+    for i, speaker in enumerate(meeting_data.speakers):
+        if i < 3:
+            num = i + 1
+            replacements[f"{{{{Speaker{num}_Name}}}}"] = speaker.name or "N/A"
+            replacements[f"{{{{Speaker{num}_Project}}}}"] = speaker.project or "N/A"
+            replacements[f"{{{{Speaker{num}_Title}}}}"] = speaker.title or "N/A"
+            replacements[f"{{{{Speaker{num}_Description}}}}"] = speaker.description or "N/A"
+            replacements[f"{{{{Speaker{num}_Min}}}}"] = speaker.duration_green or "N/A"
+            replacements[f"{{{{Speaker{num}_Max}}}}"] = speaker.duration_red or "N/A"
 
-        # Prepare replacements
-        replacements = {}
+    # Replace text in all shapes across all slides
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for paragraph in shape.text_frame.paragraphs:
+                    for run in paragraph.runs:
+                        for old, new in replacements.items():
+                            if old in run.text:
+                                run.text = run.text.replace(old, new)
 
-        # Use the meeting date string directly as scraped
-        replacements[
-            '{{meeting_date}}'] = meeting_data.meeting_info.meeting_date if meeting_data.meeting_info.meeting_date else "N/A"
-
-        # Add general role information (presenter, min/max time)
-        roles_presenters_time = get_roles_and_presenters(meeting_data)
-        for role_key, info in roles_presenters_time.items():
-            replacements[f"{{{{{role_key}_Presenter}}}}"] = info.get('presenter', 'N/A')
-            replacements[f"{{{{{role_key}_Min}}}}"] = info.get('min_time', 'N/A')
-            replacements[f"{{{{{role_key}_Max}}}}"] = info.get('max_time', 'N/A')
-
-        # Add speaker specific data
-        for i, speaker in enumerate(meeting_data.speakers):
-            if i < 3:  # For 1st, 2nd, and 3rd speakers
-                speaker_num = i + 1
-                replacements[f"{{{{Speaker{speaker_num}_Name}}}}"] = speaker.name if speaker.name else "N/A"
-                replacements[f"{{{{Speaker{speaker_num}_Project}}}}"] = speaker.project if speaker.project else "N/A"
-                replacements[
-                    f"{{{{Speaker{speaker_num}_Title}}}}"] = speaker.title if speaker.title else "N/A"  # Using the new 'title' field
-                replacements[
-                    f"{{{{Speaker{speaker_num}_Description}}}}"] = speaker.description if speaker.description else "N/A"
-                replacements[
-                    f"{{{{Speaker{speaker_num}_Min}}}}"] = speaker.duration_green if speaker.duration_green else "N/A"
-                replacements[
-                    f"{{{{Speaker{speaker_num}_Max}}}}"] = speaker.duration_red if speaker.duration_red else "N/A"
-
-        # 3. Perform the text replacements
-        for old_text, new_text in replacements.items():
-            content_xml = content_xml.replace(old_text, html.escape(new_text))
-
-        # 4. Write the modified content back to content.xml
-        with open(content_xml_path, 'w', encoding='utf-8') as f:
-            f.write(content_xml)  # Corrected: Was f.read(), now f.write(content_xml)
-
-        # 5. Re-zip the contents into the new .odp file (overwrites if exists)
-        with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zip_out:
-            for root, _, files in os.walk(temp_dir):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    arcname = os.path.relpath(file_path, temp_dir)
-                    zip_out.write(file_path, arcname)
-
-        print(f"\nPresentation successfully created at: {output_path}")
-
-    except Exception as e:
-        print(f"An error occurred during ODP creation: {e}")
-    finally:
-        # Clean up the temporary directory
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
+    prs.save(output_path)
+    print(f"\nPPTX presentation successfully created at: {output_path}")
 
 
 def update_forms(meeting_data: ToastmastersMeeting):
@@ -390,7 +418,7 @@ def update_forms(meeting_data: ToastmastersMeeting):
         speakers.append(speak.name)
     evaluators = []
     for item in meeting_data.agenda_items:
-        if "Evaluate speech" in item.event:
+        if "Evaluate speech" or "Table Topics Evaluator" in item.event:
             evaluators.append(item.presenter)
     res = requests.post(feedback_form, json={"options": speakers})
     res = requests.post(speaker_form, json={"options": speakers})
@@ -398,10 +426,9 @@ def update_forms(meeting_data: ToastmastersMeeting):
 
 
 if __name__ == "__main__":
-    print("=== EasySpeak Agenda Parser ===\n")
 
-    print("⚠️  EasySpeak has added human verification (like CAPTCHA) to agenda pages.")
-    print("🔧 To work around this, please follow these steps:\n")
+    meething_theme = input("Enter the meeting theme (or leave blank): ").strip()
+    print("=== EasySpeak Agenda Parser ===\n")
 
     print("➡️  1. Open the agenda page in your browser.")
     print("➡️  2. Open Developer Tools (F12), go to the Console tab.")
@@ -425,11 +452,12 @@ if __name__ == "__main__":
         exit(1)
 
     # Hardcoded file names
-    template_file = "template.odp"
-    output_file = "presentation.odp"
+    template_file = "template.pptx"
+    output_file = "presentation.pptx"
 
     try:
         agenda_object = scrape_easyspeak_agenda(html_content)
+        agenda_object.meeting_info.meething_theme = meething_theme if meething_theme else "N/A"
 
         # Print role assignments
         roles_presenters_time = get_roles_and_presenters(agenda_object)
@@ -446,9 +474,11 @@ if __name__ == "__main__":
                 )
 
         print(f"\nMeeting Date: {agenda_object.meeting_info.meeting_date}")
+        print(f"Next Meeting Date: {agenda_object.meeting_info.next_meeting_date}")
+        print(f"Word of the Day: {agenda_object.meeting_info.word_of_the_day}")
 
         print(f"\n📤 Generating presentation from '{template_file}'...")
-        update_odp_presentation(template_file, output_file, agenda_object)
+        update_pptx_presentation(template_file, output_file, agenda_object)
 
         print("\n🔗 Updating Google Forms...")
         update_forms(agenda_object)
