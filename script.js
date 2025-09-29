@@ -122,7 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
         meetingInfo.meeting_time = doc.querySelector('b')?.textContent.match(/\d{1,2}:\d{2}/)?.[0] ?? "";
         meetingInfo.schedule = Array.from(doc.querySelectorAll('span.gensmall')).find(el => el.textContent.includes('Every'))?.textContent.trim() ?? "";
 
-
         const agenda_items = [];
         const speakers = [];
         const mainTable = doc.querySelector('table[border="0"][cellpadding="1"][cellspacing="2"]');
@@ -149,26 +148,91 @@ document.addEventListener('DOMContentLoaded', () => {
                     let description = "";
                     const title = event;
                     
-                    // Look ahead for the details row
-                    const detailRow = rows[i + 1];
-                    const detailCell = detailRow?.querySelector('td[colspan="3"][align="left"] span.gensmall');
+                    let speakerDetailRow = null;
                     
-                    if (detailCell) {
-                        const iTag = detailCell.querySelector('i');
-                        if (iTag) {
-                            const [proj, ...descParts] = iTag.textContent.trim().split(' - ');
-                            project = proj.trim();
-                            description = descParts.join(' - ').trim();
-                        } else {
-                            project = "N/A (No Pathways Info)";
-                            description = Array.from(detailCell.childNodes)
-                                .map(node => node.textContent.trim())
-                                .filter(Boolean)
-                                .join(' ');
+                    // Look through all subsequent rows to find the detail row
+                    // The detail row should contain a <td> with colspan="3" AND align="left"
+                    const potentialNextRows = Array.from(rows).slice(i + 1);
+                    
+                    for (const potentialRow of potentialNextRows) {
+                        const targetTd = potentialRow.querySelector('td[colspan="3"][align="left"]');
+                        if (targetTd) {
+                            speakerDetailRow = potentialRow;
+                            break;
                         }
                     }
                     
-                    speakers.push({ position: role, name: presenter, project, title, description, time, duration_green, duration_amber, duration_red });
+                    if (speakerDetailRow) {
+                        // The project/description is in the <td> with colspan="3" and align="left"
+                        const projectDescTd = speakerDetailRow.querySelector('td[colspan="3"][align="left"]');
+                        
+                        if (projectDescTd) {
+                            // Find the span directly within this td
+                            const projectDescSpan = projectDescTd.querySelector('span.gensmall[valign="top"]');
+                            
+                            if (projectDescSpan) {
+                                // The project line itself is inside an <i> tag (e.g., Pathways project)
+                                const iTag = projectDescSpan.querySelector('i');
+                                
+                                if (iTag) {
+                                    const fullProjectLine = iTag.textContent.trim();
+                                    
+                                    // The 'project' is the part before ' - ' in the i_tag (if applicable)
+                                    // The 'description' is the rest of the text in the span, after the i_tag.
+                                    const projectParts = fullProjectLine.split(' - ');
+                                    project = projectParts[0].trim();
+                                    
+                                    // The description includes all subsequent text nodes within the span
+                                    const descLines = [];
+                                    // Add the part after ' - ' from the i_tag to the description if it's there
+                                    if (projectParts.length > 1) {
+                                        // This is usually the specific title from the Pathways manual for the speech type
+                                        // or a short description of the Pathways objective.
+                                        descLines.push(projectParts.slice(1).join(' - ').trim());
+                                    }
+                                    
+                                    // Combine all description parts, filtering out empty strings
+                                    description = descLines.filter(line => line).join(" ").trim();
+                                    
+                                } else {
+                                    // If no <i> tag is found within the span (e.g., a custom speech not tied to Pathways)
+                                    const allStringsInSpan = Array.from(projectDescSpan.childNodes)
+                                        .map(node => node.textContent ? node.textContent.trim() : '')
+                                        .filter(s => s);
+                                    
+                                    if (allStringsInSpan.length > 0) {
+                                        project = "N/A (No Pathways Info)"; // Indicate no Pathways info
+                                        description = allStringsInSpan.join(" ").trim(); // All text in span is description
+                                    } else {
+                                        project = "N/A (No Pathways Info)";
+                                        description = "";
+                                    }
+                                }
+                            } else {
+                                project = "TBA";
+                                description = "";
+                            }
+                        } else {
+                            project = "TBA";
+                            description = "";
+                        }
+                    } else {
+                        // No valid speaker_detail_row found at all
+                        project = "TBA";
+                        description = "";
+                    }
+                    
+                    speakers.push({ 
+                        position: role, 
+                        name: presenter, 
+                        project, 
+                        title, 
+                        description, 
+                        time, 
+                        duration_green, 
+                        duration_amber, 
+                        duration_red 
+                    });
                 }
             }
         }
