@@ -1,0 +1,71 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    # avoid retriggering when this workflow commits to the main branch
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Slidev presentation
+        working-directory: ./presentation
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare deploy directory
+        run: |
+          set -e
+          rm -rf out || true
+          mkdir -p out
+          # Copy generation static site to repository root of the deploy
+          if [ -d generation ]; then
+            cp -R generation/. out/
+          else
+            echo "generation/ folder not found"
+          fi
+
+          # Copy Slidev build output into out/presentation
+          if [ -d presentation/dist ]; then
+            mkdir -p out/presentation
+            cp -R presentation/dist/. out/presentation/
+          else
+            echo "presentation/dist not found — Slidev build may have placed files elsewhere"
+            ls -la presentation || true
+            exit 1
+          fi
+
+      - name: Copy deploy output to docs/
+        run: |
+          rm -rf docs || true
+          mkdir -p docs
+          cp -R out/. docs/
+
+      - name: Commit and push docs/ to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs
+          if git diff --staged --quiet; then
+            echo "No changes to docs; nothing to commit"
+          else
+            git commit -m "chore: deploy site to docs"
+            git push origin HEAD:main
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
