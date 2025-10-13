@@ -1,0 +1,1 @@
+import{f as t,o as s,g as o,j as a}from"../modules/vue-DqkxHldn.js";import{_ as c}from"../index-BdCk-ToB.js";const r={},n={class:"slidev-layout statement"},_={class:"my-auto"};function d(e,l){return s(),t("div",n,[o("div",_,[a(e.$slots,"default")])])}const m=c(r,[["render",d]]);export{m as I};
