@@ -9,8 +9,3 @@ To start the slide show:
 Edit the [slides.md](./slides.md) to see the changes.
 
 Learn more about Slidev at the [documentation](https://sli.dev/).
-
-Build output
-------------
-
-The CI workflow expects `npm run build` to produce a static output in `presentation/dist`. If your Slidev setup outputs elsewhere, update `.github/workflows/deploy.yml` accordingly.
