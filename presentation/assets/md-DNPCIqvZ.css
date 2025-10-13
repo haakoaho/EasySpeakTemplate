@@ -1,0 +1,1 @@
+.animate-pulse[data-v-e20d2f84]{animation:pulse-e20d2f84 1.5s infinite}@keyframes pulse-e20d2f84{0%,to{opacity:.4}50%{opacity:1}}.animate-bounce[data-v-e20d2f84]{animation:bounce-e20d2f84 1s infinite}@keyframes bounce-e20d2f84{0%,to{transform:translateY(0)}50%{transform:translateY(-10px)}}

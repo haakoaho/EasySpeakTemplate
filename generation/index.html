@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EasySpeak Agenda to PPTX</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.5/pizzip.min.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <h1>EasySpeak Agenda Parser</h1>
+      <div class="instructions">
+        <p><strong>1.</strong> Open the EasySpeak agenda</p>
+        <img src="public/AgendaGo.png" alt="" class="instructions_image" />
+        <p>
+          <strong>2.</strong>copy its HTML (F12 -> Console ->
+          <code>copy(document.documentElement.outerHTML)</code>).
+        </p>
+        <img src="public/ConsoleCommand.png" alt="" class="instructions_image" />
+        <p><strong>3.</strong> Paste the HTML into the text area below.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="meetingTheme">Meeting Theme (Optional)</label>
+        <input
+          type="text"
+          id="meetingTheme"
+          placeholder="Enter the meeting theme"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="htmlContent">Paste Agenda HTML Here</label>
+        <textarea
+          id="htmlContent"
+          rows="10"
+          placeholder="Paste the copied HTML content here..."
+        ></textarea>
+      </div>
+
+      <button id="generateBtn">Generate Presentation</button>
+
+      <div id="status"></div>
+    </div>
+    <script src="script.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  </body>
+</html>
