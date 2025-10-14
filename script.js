@@ -150,10 +150,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     await Promise.all([
       // Use the combined list for feedback and speaker forms
-      postData(urls.feedback_form, speakerAndEvaluatorList),
-      postData(urls.speaker_form, speakerAndEvaluatorList),
+      postData(urls.feedback_form, speakers),
+      postData(urls.speaker_form, speakers),
       postData(urls.evaluator_form, evaluators),
-      postData(urls.table_topics_form, []),
+      postData(urls.table_topics_form, ["None"]),
     ]);
 
     // ✅ After all form updates are done, wait a bit and then redirect
