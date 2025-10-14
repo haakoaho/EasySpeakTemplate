@@ -101,67 +101,63 @@ document.addEventListener("DOMContentLoaded", () => {
   /**
    * Updates the Google Forms by sending POST requests.
    */
-  async function updateForms(meetingData) {
+ async function updateForms(meetingData) {
     const urls = {
-      // These URLs are for your Google Apps Scripts that handle form dropdown updates
-      feedback_form:
-        "https://script.google.com/macros/s/AKfycbwJvhdu3KwRkSW17tEFxodtYV5ssCn2Wvhtli1M_9N6KHDuz-mmchLFtW2LAdcHw6PNgQ/exec",
-      speaker_form:
-        "https://script.google.com/macros/s/AKfycbxUu5xSp9PGSkmJp21XiR6Zh31s_C84S_RqpLunrrqWiGt-AXlg30VBcZz9Ka3SJxUsWw/exec",
-      evaluator_form:
-        "https://script.google.com/macros/s/AKfycbzasaenEuAMB_11pQGr23lHVE_j_VSlhhgITDDReQd2MPQ9C0QfSChmX_5ZLlHoadyu/exec",
-      table_topics_form:
-        "https://script.google.com/macros/s/AKfycbye3kDgEZcBnyl-bK09cbmRmxFpueFdVi43gQv92EWP8wL1soKtq-B913_F_XhiJOZLAg/exec",
+        feedback_form: "https://script.google.com/macros/s/AKfycbwJvhdu3KwRkSW17tEFxodtYV5ssCn2Wvhtli1M_9N6KHDuz-mmchLFtW2LAdcHw6PNgQ/exec",
+        speaker_form: "https://script.google.com/macros/s/AKfycbxUu5xSp9PGSkmJp21XiR6Zh31s_C84S_RqpLunrrqWiGt-AXlg30VBcZz9Ka3SJxUsWw/exec",
+        evaluator_form: "https://script.google.com/macros/s/AKfycbzasaenEuAMB_11pQGr23lHVE_j_VSlhhgITDDReQd2MPQ9C0QfSChmX_5ZLlHoadyu/exec",
+        table_topics_form: "https://script.google.com/macros/s/AKfycbye3kDgEZcBnyl-bK09cbmRmxFpueFdVi43gQv92EWP8wL1soKtq-B913_F_XhiJOZLAg/exec"
     };
 
+    // --- Normalize names for consistency ---
+    const normalizeName = (name) => name ? name.replace(/\s+/g, " ").replace(/ ,/g, ",").trim() : "";
+
+    // --- SPEAKERS: keep only those with or without '?' as they appear in the agenda ---
     const speakers = meetingData.speakers
-      .map((s) => s.name)
-      .filter((name) => name && name !== "TBA");
+        .map(s => normalizeName(s.name))
+        .filter(name => name && name !== "TBA");
 
+    // --- EVALUATORS: pull from agenda items (confirmed evaluators only, usually without '?') ---
     const evaluators = meetingData.agenda_items
-      .filter(
-        (item) =>
-          (item.event.includes("Evaluate speech") ||
-            item.event.includes("Table Topics Evaluator")) &&
-          item.presenter &&
-          item.presenter !== "TBA"
-      )
-      .map((item) => item.presenter);
+        .filter(item => 
+            (item.event.includes("Evaluate speech") || item.event.includes("Table Topics Evaluator")) &&
+            item.presenter && item.presenter !== "TBA"
+        )
+        .map(item => normalizeName(item.presenter));
 
-    // 🔥 NEW CHANGE: Combine speakers and evaluators into one list, removing duplicates
-    const speakerAndEvaluatorList = [...new Set([...speakers, ...evaluators])];
+    const feedbackList = [...new Set(speakers)];
+    const speakerList = [...new Set(speakers)];
+    const evaluatorList = [...new Set(evaluators)];
 
-    // Function to send data to a Google Form Web App
+    const tableTopicsList = ["No Winner 😈"];
+
+    // --- Function to send POST data to Google App Script ---
     const postData = async (url, options) => {
-      try {
-        await fetch(url, {
-          method: "POST",
-          mode: "no-cors", // Use 'no-cors' for Google App Script Web Apps
-          // Pass the array of options (speakers/evaluators)
-          body: JSON.stringify({ options: options }),
-        });
-      } catch (e) {
-        console.warn(
-          `Could not update form at ${url}. This might be expected due to 'no-cors' mode, but check for network errors:`,
-          e
-        );
-      }
+        try {
+            await fetch(url, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify({ options })
+            });
+        } catch (e) {
+            console.warn(`Could not update form at ${url}:`, e);
+        }
     };
 
+    // --- Perform all updates in parallel ---
     await Promise.all([
-      // Use the combined list for feedback and speaker forms
-      postData(urls.feedback_form, speakers),
-      postData(urls.speaker_form, speakers),
-      postData(urls.evaluator_form, evaluators),
-      postData(urls.table_topics_form, ["None"]),
+        postData(urls.feedback_form, feedbackList),
+        postData(urls.speaker_form, speakerList),
+        postData(urls.evaluator_form, evaluatorList),
+        postData(urls.table_topics_form, tableTopicsList)
     ]);
 
-    // ✅ After all form updates are done, wait a bit and then redirect
+    // --- Redirect after successful update ---
     setTimeout(() => {
-      window.location.href =
-        "https://haakoaho.github.io/Oslo-Toastmaters-Meeting/1";
-    }, 1500); // small delay so user sees the “success” message
-  }
+        window.location.href = "https://haakoaho.github.io/Oslo-Toastmaters-Meeting/1";
+    }, 1500);
+}
+
 
   // ------------------------------------------------------------------
   // NEW: PREPROCESSING LOGIC FOR SLI.DEV TEMPLATES
