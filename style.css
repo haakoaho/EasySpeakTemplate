@@ -1,97 +1,157 @@
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #f4f7f9;
-    color: #333;
-    margin: 0;
-    padding: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  background-color: #f4f7f9;
+  color: #333;
+  margin: 0;
+  padding: 20px;
 }
 
 .container {
-    width: 100%;
-    max-width: 800px;
-    background-color: #fff;
-    padding: 30px;
-    border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 800px;
+  background-color: #fff;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  margin: 20px auto;
 }
 
-h1 {
-    text-align: center;
-    color: #00417e;
-    margin-bottom: 20px;
+h1,
+h2 {
+  text-align: center;
+  color: #00417e;
+  margin-bottom: 20px;
 }
 
 .instructions {
-    background-color: #eef7ff;
-    border-left: 4px solid #007bff;
-    padding: 15px;
-    margin-bottom: 25px;
-    font-size: 0.9em;
+  background-color: #eef7ff;
+  border-left: 4px solid #007bff;
+  padding: 15px;
+  margin-bottom: 25px;
+  font-size: 0.9em;
 }
 
 .form-group {
-    margin-bottom: 20px;
+  margin-bottom: 20px;
 }
 
 label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #555;
 }
 
 input[type="text"],
 textarea {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box; /* Important for padding */
-    font-size: 1em;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box; /* Important for padding */
+  font-size: 1em;
 }
 
 textarea {
-    resize: vertical;
+  resize: vertical;
 }
 
 button {
-    width: 100%;
-    padding: 15px;
-    background-color: #28a745;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    font-size: 1.1em;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
+  width: 100%;
+  padding: 15px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 10px;
 }
 
 button:hover {
-    background-color: #218838;
+  background-color: #218838;
+}
+
+#parseBtn {
+  background-color: #007bff;
+}
+#parseBtn:hover {
+  background-color: #0069d9;
 }
 
 #status {
-    margin-top: 20px;
-    text-align: center;
-    font-weight: 500;
-    padding: 10px;
-    border-radius: 4px;
+  margin-top: 20px;
+  text-align: center;
+  font-weight: 500;
+  padding: 10px;
+  border-radius: 4px;
 }
 
 #status.success {
-    color: #155724;
-    background-color: #d4edda;
+  color: #155724;
+  background-color: #d4edda;
 }
 
 #status.error {
-    color: #721c24;
-    background-color: #f8d7da;
+  color: #721c24;
+  background-color: #f8d7da;
 }
 
-.instructions_image{
-    max-width: 100%;
+.instructions_image {
+  max-width: 100%;
+  border-radius: 4px;
+  margin: 10px 0;
+}
+
+/* --- NEW EDITOR STYLES --- */
+#editorContainer {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 2px solid #eee;
+}
+
+.editor-section {
+  margin-bottom: 25px;
+}
+
+.editor-section h3 {
+  color: #005a9e;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 5px;
+  margin-bottom: 15px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.field-row label {
+  flex-basis: 200px; /* Fixed width for labels */
+  margin-bottom: 0;
+  padding-right: 15px;
+  font-weight: normal;
+}
+
+.field-row input {
+  flex-grow: 1;
+}
+
+/* --- SPEECH CARD STYLING --- */
+.speech-card {
+  background-color: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+
+.speech-card h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
 }

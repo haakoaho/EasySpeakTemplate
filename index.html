@@ -3,22 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EasySpeak Agenda to PPTX</title>
+    <title>EasySpeak Agenda Editor & Updater</title>
     <link rel="stylesheet" href="style.css" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.5/pizzip.min.js"></script>
   </head>
   <body>
     <div class="container">
-      <h1>EasySpeak Agenda Parser</h1>
+      <h1>EasySpeak Agenda Editor</h1>
       <div class="instructions">
-        <p><strong>1.</strong> Open the EasySpeak agenda</p>
-        <img src="public/AgendaGo.png" alt="" class="instructions_image" />
         <p>
-          <strong>2.</strong>copy its HTML (F12 -> Console ->
-          <code>copy(document.documentElement.outerHTML)</code>).
+          <strong>1.</strong> Open the EasySpeak agenda and copy its HTML (F12
+          -> Console -> <code>copy(document.documentElement.outerHTML)</code>).
         </p>
-        <img src="public/ConsoleCommand.png" alt="" class="instructions_image" />
-        <p><strong>3.</strong> Paste the HTML into the text area below.</p>
+        <img
+          src="public/AgendaGo.png"
+          alt="Go to the EasySpeak agenda page"
+          class="instructions_image"
+        />
+        <img
+          src="public/ConsoleCommand.png"
+          alt="Browser console command"
+          class="instructions_image"
+        />
+        <p><strong>2.</strong> Paste the HTML into the text area below.</p>
       </div>
 
       <div class="form-group">
@@ -39,7 +45,15 @@
         ></textarea>
       </div>
 
-      <button id="generateBtn">Generate Presentation</button>
+      <button id="parseBtn">Parse Agenda & Edit</button>
+
+      <div id="editorContainer" style="display: none">
+        <h2>Edit Agenda Roles & Speakers</h2>
+        <div id="rolesEditor" class="editor-section"></div>
+        <div id="speakersEditor" class="editor-section"></div>
+      </div>
+
+      <button id="generateBtn">Finalize & Update Forms</button>
 
       <div id="status"></div>
     </div>
