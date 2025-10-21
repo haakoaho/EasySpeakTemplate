@@ -1,7 +1,5 @@
-// --- Wait for the DOM to be fully loaded before running the script ---
 document.addEventListener("DOMContentLoaded", () => {
   const generateBtn = document.getElementById("generateBtn");
-  const parseBtn = document.getElementById("parseBtn");
   const htmlContentInput = document.getElementById("htmlContent");
   const meetingThemeInput = document.getElementById("meetingTheme");
   const statusDiv = document.getElementById("status");
@@ -9,85 +7,74 @@ document.addEventListener("DOMContentLoaded", () => {
   const rolesEditor = document.getElementById("rolesEditor");
   const speakersEditor = document.getElementById("speakersEditor");
   let lastParsedAgenda = null;
+  let hasParsed = false;
 
-  // --- Attach event listener to the button ---
-  // Parse button - populate the editable UI from pasted HTML
-  parseBtn.addEventListener("click", () => {
-    const htmlContent = htmlContentInput.value;
-    if (!htmlContent.trim()) {
-      updateStatus("error", "HTML content cannot be empty.");
-      return;
-    }
-    try {
-      updateStatus("info", "Parsing agenda... (edit below if needed)");
-      const agendaObject = scrapeEasySpeakAgenda(htmlContent);
-      lastParsedAgenda = agendaObject; // keep for merging later
-
-      // Pre-fill meeting theme if user input exists
-      agendaObject.meeting_info.meeting_theme =
-        meetingThemeInput.value.trim() ||
-        agendaObject.meeting_info.meeting_theme ||
-        "N/A";
-      agendaObject.structured_roles = getStructuredRoles(agendaObject);
-
-      populateEditors(agendaObject);
-      editorContainer.style.display = "block";
-      updateStatus(
-        "success",
-        "Parsed agenda. Make edits then click Finalize."
-      );
-    } catch (err) {
-      console.error(err);
-      updateStatus("error", "Failed to parse HTML. See console for details.");
-    }
-  });
-
-  // Generate button - collect edited data, ensure missing fields, then download and post
-  generateBtn.addEventListener("click", async () => {
-    try {
-      if (!lastParsedAgenda) {
-        updateStatus(
-          "error",
-          "No agenda has been parsed. Please paste HTML and click 'Parse Agenda' first."
-        );
+  // --- Auto-parse when HTML is pasted ---
+  htmlContentInput.addEventListener("paste", () => {
+    setTimeout(() => {
+      const htmlContent = htmlContentInput.value.trim();
+      if (!htmlContent) {
+        updateStatus("error", "HTML content cannot be empty.");
         return;
       }
 
-      updateStatus("info", "Collecting edited data and generating JSON...");
-      const edits = collectEditedAgenda();
+      try {
+        updateStatus("info", "Parsing agenda... (edit below if needed)");
+        const agendaObject = scrapeEasySpeakAgenda(htmlContent);
+        lastParsedAgenda = agendaObject;
+        hasParsed = true;
 
-      // Merge: preserve meeting_info and agenda_items from parsed, replace roles/speakers with edits
+        // Fill meeting theme if blank
+        agendaObject.meeting_info.meeting_theme =
+          meetingThemeInput.value.trim() ||
+          agendaObject.meeting_info.meeting_theme ||
+          "N/A";
+        agendaObject.structured_roles = getStructuredRoles(agendaObject);
+
+        populateEditors(agendaObject);
+        editorContainer.style.display = "block";
+        updateStatus("success", "Agenda parsed! Edit and click Save below.");
+      } catch (err) {
+        console.error(err);
+        updateStatus("error", "Failed to parse HTML. See console for details.");
+      }
+    }, 100);
+  });
+
+  // --- Save/Generate button logic ---
+  generateBtn.addEventListener("click", async () => {
+    try {
+      if (!hasParsed) {
+        updateStatus("error", "Please paste HTML first.");
+        return;
+      }
+
+      updateStatus("info", "Collecting edits and generating JSON...");
+      const edits = collectEditedAgenda();
       const finalAgenda = { ...lastParsedAgenda };
+
       finalAgenda.meeting_info.meeting_theme =
         meetingThemeInput.value.trim() ||
         finalAgenda.meeting_info.meeting_theme ||
         "N/A";
       finalAgenda.structured_roles = edits.structured_roles;
-      finalAgenda.speakers = edits.speakers; // Replace with the edited speakers
-
-      console.log("Final merged agenda:", finalAgenda);
+      finalAgenda.speakers = edits.speakers;
 
       downloadAgendaFile(finalAgenda, "agenda.json");
-      updateStatus("info", "Updating Google Forms...");
       await updateForms(finalAgenda);
-      updateStatus("success", "Generated agenda, forms updated, redirecting...");
+      updateStatus("success", "Agenda saved, forms updated, redirecting...");
     } catch (err) {
       console.error(err);
       updateStatus("error", `Generate failed: ${err.message}`);
     }
   });
 
-  /**
-   * Updates the status message on the page.
-   */
+  // --- UI Helpers ---
   function updateStatus(type, message) {
     statusDiv.textContent = message;
-    statusDiv.className = type; // 'success', 'error', or 'info'
+    statusDiv.className = type;
   }
 
-  /**
-   * Triggers a client-side download of a JSON object as a file.
-   */
   function downloadAgendaFile(data, filename) {
     const jsonString = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
@@ -100,9 +87,6 @@ document.addEventListener("DOMContentLoaded", () => {
     URL.revokeObjectURL(a.href);
   }
 
-  /**
-   * Updates the Google Forms by sending POST requests.
-   */
   async function updateForms(meetingData) {
     const urls = {
       feedback_form:
@@ -115,17 +99,16 @@ document.addEventListener("DOMContentLoaded", () => {
         "https://script.google.com/macros/s/AKfycbye3kDgEZcBnyl-bK09cbmRmxFpueFdVi43gQv92EWP8wL1soKtq-B913_F_XhiJOZLAg/exec",
     };
 
-    const normalizeName = (name) =>
+    const normalize = (name) =>
       name ? name.replace(/\s+/g, " ").replace(/ ,/g, ",").trim() : "";
 
     const speakers = (meetingData.speakers || [])
-      .map((s) => normalizeName(s.name))
-      .filter((name) => name && name !== "TBA");
+      .map((s) => normalize(s.name))
+      .filter((n) => n && n !== "TBA");
 
-    // NEW: Get evaluators from the speaker objects, which is more reliable
     const evaluators = (meetingData.speakers || [])
-      .map((s) => normalizeName(s.evaluator))
-      .filter((name) => name && name !== "TBA");
+      .map((s) => normalize(s.evaluator))
+      .filter((n) => n && n !== "TBA");
 
     const speakerList = [...new Set(speakers)];
     const evaluatorList = [...new Set(evaluators)];
@@ -156,11 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1500);
   }
 
-  // ----------------- NEW EDITOR LOGIC -----------------
-
-  /**
-   * A canonical list of all roles to display in the editor.
-   */
+  // --- Roles and Speakers Editor ---
   const ALL_ROLES = [
     "President",
     "Toastmaster",
@@ -172,20 +151,16 @@ document.addEventListener("DOMContentLoaded", () => {
     "Table Topics Evaluator",
   ];
 
-  /**
-   * Populates the editor UI with fields for all roles and speakers.
-   */
   function populateEditors(agenda) {
     rolesEditor.innerHTML = "";
     speakersEditor.innerHTML = "";
 
-    // --- 1. Populate Roles Editor ---
+    // Roles
     const rolesTitle = document.createElement("h3");
     rolesTitle.textContent = "Meeting Roles";
     rolesEditor.appendChild(rolesTitle);
 
     const parsedRoles = agenda.structured_roles || {};
-
     ALL_ROLES.forEach((roleName) => {
       const strippedKey = roleName.replace(/\s|&/g, "");
       const presenter = parsedRoles[strippedKey]?.presenter || "";
@@ -193,12 +168,11 @@ document.addEventListener("DOMContentLoaded", () => {
       rolesEditor.appendChild(row);
     });
 
-    // --- 2. Populate Speakers & Evaluators as grouped cards ---
+    // Speakers
     const speakersTitle = document.createElement("h3");
     speakersTitle.textContent = "Speeches";
     speakersEditor.appendChild(speakersTitle);
 
-    // Link evaluators to speakers by their order
     const evaluators = agenda.agenda_items.filter((item) =>
       item.role.toLowerCase().includes("evaluator")
     );
@@ -208,26 +182,47 @@ document.addEventListener("DOMContentLoaded", () => {
       card.className = "speech-card";
       card.dataset.index = index;
 
-      const cardTitle = document.createElement('h4');
+      const cardTitle = document.createElement("h4");
       cardTitle.textContent = `Speech ${index + 1}`;
       card.appendChild(cardTitle);
 
-      const speakerName = speaker.name || "";
-      const speechTitle = speaker.title || "";
-      // Find the corresponding evaluator by index (e.g., 1st Evaluator for 1st Speaker)
-      const evaluator = evaluators.find((e) => e.role.startsWith(`${index + 1}`));
+      const evaluator = evaluators.find((e) =>
+        e.role.startsWith(`${index + 1}`)
+      );
       const evaluatorName = evaluator ? evaluator.presenter : "";
 
-      card.appendChild(createLabeledInput("Speaker", speakerName, "name"));
-      card.appendChild(createLabeledInput("Speech Title", speechTitle, "title"));
+      card.appendChild(createLabeledInput("Speaker", speaker.name, "name"));
+      card.appendChild(createLabeledInput("Speech Title", speaker.title, "title"));
       card.appendChild(createLabeledInput("Evaluator", evaluatorName, "evaluator"));
       speakersEditor.appendChild(card);
     });
+
+    // Add Speaker button
+    const addSpeakerBtn = document.createElement("button");
+    addSpeakerBtn.textContent = "+ Add Speaker";
+    addSpeakerBtn.type = "button";
+    addSpeakerBtn.id = "addSpeakerBtn";
+    addSpeakerBtn.style.marginTop = "1em";
+
+    addSpeakerBtn.addEventListener("click", () => {
+      const index = speakersEditor.querySelectorAll(".speech-card").length;
+      const card = document.createElement("div");
+      card.className = "speech-card";
+      card.dataset.index = index;
+
+      const cardTitle = document.createElement("h4");
+      cardTitle.textContent = `Speech ${index + 1}`;
+      card.appendChild(cardTitle);
+
+      card.appendChild(createLabeledInput("Speaker", "", "name"));
+      card.appendChild(createLabeledInput("Speech Title", "", "title"));
+      card.appendChild(createLabeledInput("Evaluator", "", "evaluator"));
+      speakersEditor.appendChild(card);
+    });
+
+    speakersEditor.appendChild(addSpeakerBtn);
   }
 
-  /**
-   * Creates a div containing a label and an input field.
-   */
   function createLabeledInput(labelText, value, key) {
     const wrapper = document.createElement("div");
     wrapper.className = "field-row";
@@ -236,59 +231,38 @@ document.addEventListener("DOMContentLoaded", () => {
     const input = document.createElement("input");
     input.type = "text";
     input.value = value || "";
-    input.dataset.key = key; // Use a common key for data collection
+    input.dataset.key = key;
     wrapper.appendChild(label);
     wrapper.appendChild(input);
     return wrapper;
   }
 
-  /**
-   * Collects all data from the editable fields.
-   */
   function collectEditedAgenda() {
-    // Collect structured_roles from rolesEditor
     const structured_roles = {};
     rolesEditor.querySelectorAll(".field-row").forEach((row) => {
       const input = row.querySelector("input");
       const roleName = input.dataset.key;
-      const presenterName = input.value.trim();
+      const presenter = input.value.trim();
       const strippedKey = roleName.replace(/\s|&/g, "");
-      if (roleName) {
-        structured_roles[strippedKey] = { presenter: presenterName };
-      }
+      structured_roles[strippedKey] = { presenter };
     });
 
-    // Collect speakers from speech cards
     const speakers = [];
     speakersEditor.querySelectorAll(".speech-card").forEach((card) => {
       const name = card.querySelector('input[data-key="name"]').value.trim();
       const title = card.querySelector('input[data-key="title"]').value.trim();
       const evaluator = card.querySelector('input[data-key="evaluator"]').value.trim();
-      
-      // Get original speaker data to preserve other fields
-      const originalSpeakerIndex = card.dataset.index;
-      const originalSpeaker = lastParsedAgenda.speakers[originalSpeakerIndex] || {};
-
-      speakers.push({
-        ...originalSpeaker, // Preserve fields like project, description, time
-        name,
-        title,
-        evaluator, // Add the new evaluator field
-      });
+      const idx = card.dataset.index;
+      const original = lastParsedAgenda.speakers[idx] || {};
+      speakers.push({ ...original, name, title, evaluator });
     });
 
-    return {
-      structured_roles,
-      speakers,
-    };
+    return { structured_roles, speakers };
   }
 
-  // ------------------------------------------------------------------
-  // PREPROCESSING & SCRAPING LOGIC (Largely unchanged)
-  // ------------------------------------------------------------------
-
+  // --- Scraping and helper functions ---
   function getStructuredRoles(meetingData) {
-    const rolesInfo = {};
+    const roles = {};
     for (const item of meetingData.agenda_items) {
       if (
         !item.role ||
@@ -299,214 +273,35 @@ document.addEventListener("DOMContentLoaded", () => {
       )
         continue;
 
-      const strippedRole = item.role.replace(/\s|&/g, "");
-      rolesInfo[strippedRole] = {
-        presenter: item.presenter,
-      };
+      const key = item.role.replace(/\s|&/g, "");
+      roles[key] = { presenter: item.presenter };
     }
-    return rolesInfo;
+    return roles;
   }
 
-  function getDaySuffix(day) {
-    if (day > 3 && day < 21) return "th";
-    switch (day % 10) {
-      case 1:
-        return "st";
-      case 2:
-        return "nd";
-      case 3:
-        return "rd";
-      default:
-        return "th";
-    }
-  }
-
-  function nextWeek(dateString) {
-    const cleanedDateString = dateString.replace(/(st|nd|rd|th)/, "");
-    const parsedDate = new Date(cleanedDateString);
-    if (isNaN(parsedDate)) {
-      console.warn("Could not parse the date string for nextWeek().");
-      return "TBA";
-    }
-    parsedDate.setDate(parsedDate.getDate() + 7);
-    const day = parsedDate.getDate();
-    const suffix = getDaySuffix(day);
-    const weekday = parsedDate.toLocaleDateString("en-GB", { weekday: "long" });
-    const month = parsedDate.toLocaleDateString("en-GB", { month: "long" });
-    const year = parsedDate.getFullYear();
-    return `${weekday} ${day}${suffix} ${month} ${year}`;
-  }
-
-  function scrapeEasySpeakAgenda(htmlContent) {
+  function scrapeEasySpeakAgenda(html) {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlContent, "text/html");
+    const doc = parser.parseFromString(html, "text/html");
 
     const meetingInfo = {};
     meetingInfo.club_name =
       doc.querySelector("a.maintitle")?.textContent.trim() ?? "";
 
-    const districtInfoElem = Array.from(
-      doc.querySelectorAll("span.gensmall")
-    ).find((el) => el.textContent.includes("District"));
-    if (districtInfoElem) {
-      const parts = districtInfoElem.textContent.trim().split(", ");
-      meetingInfo.district = parts[0]?.replace("District ", "") ?? "";
-      meetingInfo.division = parts[1]?.replace("Division ", "") ?? "";
-      meetingInfo.area = parts[2]?.replace("Area ", "") ?? "";
-      meetingInfo.club_number = parts[3]?.replace("Club Number ", "") ?? "";
-    }
-
-    const postBodySpans = doc.querySelectorAll("span.postbody");
-    for (const span of postBodySpans) {
-      const text = span.textContent;
-      const dateMatch = text.match(
-        /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+\d+\w*\s+\w+\s+\d{4}/
-      );
-      if (dateMatch && !meetingInfo.meeting_date) {
-        meetingInfo.meeting_date = dateMatch[0];
-        meetingInfo.next_meeting_date = nextWeek(meetingInfo.meeting_date);
-      }
-      if (text.includes("Word of the Day")) {
-        meetingInfo.word_of_the_day =
-          text.split("Word of the Day")[1]?.trim() ?? "";
-      }
-      if (text.includes("Venue ")) {
-        meetingInfo.venue = text.replace("Venue ", "").trim();
-      }
-    }
-
-    meetingInfo.meeting_time =
-      doc.querySelector("b")?.textContent.match(/\d{1,2}:\d{2}/)?.[0] ?? "";
-    meetingInfo.schedule =
-      Array.from(doc.querySelectorAll("span.gensmall"))
-        .find((el) => el.textContent.includes("Every"))
-        ?.textContent.trim() ?? "";
-
     const agenda_items = [];
     const speakers = [];
-    const mainTable = doc.querySelector(
-      'table[border="0"][cellpadding="1"][cellspacing="2"]'
-    );
-    if (mainTable) {
-      const rows = mainTable.querySelectorAll("tr");
-      for (let i = 0; i < rows.length; i++) {
-        const cells = rows[i].querySelectorAll("td");
-        if (cells.length < 5) continue;
-
-        const time =
-          cells[0].querySelector("span.gensmall")?.textContent.trim() ||
-          (agenda_items.length > 0
-            ? agenda_items[agenda_items.length - 1].time
-            : "TBA");
-        const role = cells[1].querySelector("span.gen")?.textContent.trim() ?? "";
-        const presenter =
-          cells[2].querySelector("span.gen")?.textContent.trim() ?? "";
-        const event =
-          cells[3].querySelector("span.gensmall")?.textContent.trim() ?? "";
-
-        const durationParts =
-          cells[4]
-            .querySelector("span.gensmall")
-            ?.textContent.trim()
-            .split(/\s+/) ?? [];
-        const duration_green = durationParts[0] ?? "";
-        const duration_amber = durationParts[1] ?? "";
-        const duration_red = durationParts[2] ?? "";
-
-        agenda_items.push({
-          time,
-          role,
-          presenter,
-          event,
-          duration_green,
-          duration_amber,
-          duration_red,
-        });
-
-        if (role.includes("Speaker")) {
-          let project = "TBA";
-          let description = "";
-          const title = event;
-          let speakerDetailRow = null;
-          const potentialNextRows = Array.from(rows).slice(i + 1);
-
-          for (const potentialRow of potentialNextRows) {
-            const targetTd = potentialRow.querySelector(
-              'td[colspan="3"][align="left"]'
-            );
-            if (targetTd) {
-              speakerDetailRow = potentialRow;
-              break;
-            }
-          }
-
-          if (speakerDetailRow) {
-            const projectDescTd = speakerDetailRow.querySelector(
-              'td[colspan="3"][align="left"]'
-            );
-            if (projectDescTd) {
-              const projectDescSpan = projectDescTd.querySelector(
-                'span.gensmall[valign="top"]'
-              );
-              if (projectDescSpan) {
-                const iTag = projectDescSpan.querySelector("i");
-                if (iTag) {
-                  const fullProjectLine = iTag.textContent.trim();
-                  const projectParts = fullProjectLine.split(" - ");
-                  project = projectParts[0].trim();
-                  if (projectParts.length > 1) {
-                    description = projectParts.slice(1).join(" - ").trim();
-                  }
-                }
-              }
-            }
-          }
-
-          speakers.push({
-            position: role,
-            name: presenter,
-            project,
-            title,
-            description,
-            time,
-            duration_green,
-            duration_amber,
-            duration_red,
-          });
-        }
+    const rows = doc.querySelectorAll("table tr");
+    rows.forEach((r) => {
+      const tds = r.querySelectorAll("td");
+      if (tds.length < 5) return;
+      const role = tds[1]?.innerText.trim() || "";
+      const presenter = tds[2]?.innerText.trim() || "";
+      const event = tds[3]?.innerText.trim() || "";
+      if (role.includes("Speaker")) {
+        speakers.push({ name: presenter, title: event });
       }
-    }
+      agenda_items.push({ role, presenter, event });
+    });
 
-    // Attending members and next meeting logic remains the same
-    const attending_members = [];
-    const attendingHeader = Array.from(
-      doc.querySelectorAll("span.cattitle")
-    ).find((el) => el.textContent === "Attending");
-    if (attendingHeader) {
-      const membersCell = attendingHeader
-        .closest("tr")
-        ?.nextElementSibling?.querySelector("td.gensmall");
-      if (membersCell) {
-        attending_members.push(
-          ...membersCell.textContent
-            .split(/[,;\n\r]+/)
-            .map((name) => name.trim())
-            .filter((name) => name && name !== "Member")
-        );
-      }
-    }
-
-    const next_meeting =
-      Array.from(doc.querySelectorAll("span.cattitle"))
-        .find((el) => el.textContent === "Next Meeting")
-        ?.nextElementSibling?.textContent.trim() ?? "";
-
-    return {
-      meeting_info: meetingInfo,
-      agenda_items,
-      speakers,
-      attending_members,
-      next_meeting,
-    };
+    return { meeting_info: meetingInfo, agenda_items, speakers };
   }
 });

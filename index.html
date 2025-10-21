@@ -9,21 +9,12 @@
   <body>
     <div class="container">
       <h1>EasySpeak Agenda Editor</h1>
+
       <div class="instructions">
         <p>
-          <strong>1.</strong> Open the EasySpeak agenda and copy its HTML (F12
-          -> Console -> <code>copy(document.documentElement.outerHTML)</code>).
+          <strong>1.</strong> Open the EasySpeak agenda and copy its HTML
+          (<code>F12 → Console → copy(document.documentElement.outerHTML)</code>)
         </p>
-        <img
-          src="public/AgendaGo.png"
-          alt="Go to the EasySpeak agenda page"
-          class="instructions_image"
-        />
-        <img
-          src="public/ConsoleCommand.png"
-          alt="Browser console command"
-          class="instructions_image"
-        />
         <p><strong>2.</strong> Paste the HTML into the text area below.</p>
       </div>
 
@@ -45,19 +36,20 @@
         ></textarea>
       </div>
 
-      <button id="parseBtn">Parse Agenda & Edit</button>
 
       <div id="editorContainer" style="display: none">
         <h2>Edit Agenda Roles & Speakers</h2>
+
         <div id="rolesEditor" class="editor-section"></div>
         <div id="speakersEditor" class="editor-section"></div>
+        
+        <button id="generateBtn" type="button">Save & Generate Updated Forms</button>
       </div>
-
-      <button id="generateBtn">Finalize & Update Forms</button>
 
       <div id="status"></div>
     </div>
-    <script src="script.js"></script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="script.js"></script>
   </body>
 </html>
