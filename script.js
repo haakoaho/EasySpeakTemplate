@@ -219,7 +219,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       card.appendChild(createLabeledInput("Speaker", speaker.name, "name"));
       card.appendChild(createLabeledInput("Speech Title", speaker.title, "title"));
-      card.appendChild(createLabeledInput("Project", speaker.project || "", "project"));
+  card.appendChild(createLabeledInput("Project", speaker.project || "", "project"));
+  card.appendChild(createLabeledInput("Project Description", speaker.project_description || "", "project_description"));
       card.appendChild(createLabeledInput("Time", speaker.time || "", "time"));
       card.appendChild(createLabeledInput("Evaluator", evaluatorName, "evaluator"));
       speakersEditor.appendChild(card);
@@ -279,12 +280,13 @@ document.addEventListener("DOMContentLoaded", () => {
     speakersEditor.querySelectorAll(".speech-card").forEach((card) => {
       const name = (card.querySelector('input[data-key="name"]')?.value || "").trim();
       const title = (card.querySelector('input[data-key="title"]')?.value || "").trim();
-      const project = (card.querySelector('input[data-key="project"]')?.value || "").trim();
-      const time = (card.querySelector('input[data-key="time"]')?.value || "").trim();
+  const project = (card.querySelector('input[data-key="project"]')?.value || "").trim();
+  const project_description = (card.querySelector('input[data-key="project_description"]')?.value || "").trim();
+  const time = (card.querySelector('input[data-key="time"]')?.value || "").trim();
       const evaluator = (card.querySelector('input[data-key="evaluator"]')?.value || "").trim();
       const idx = parseInt(card.dataset.index, 10);
       const original = (lastParsedAgenda && lastParsedAgenda.speakers && lastParsedAgenda.speakers[idx]) || {};
-      speakers.push({ ...original, name, title, project, time, evaluator });
+      speakers.push({ ...original, name, title, project, project_description, time, evaluator });
     });
 
     return { structured_roles, speakers };
@@ -433,11 +435,28 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           }
         }
+        // If project contains a dash, split into short project title and description
+        let project_description = "";
+        if (project) {
+          const splitRe = /\s[-–—]\s/;
+          if (splitRe.test(project)) {
+            const parts = project.split(splitRe);
+            project = (parts[0] || "").trim();
+            project_description = (parts.slice(1).join(' - ') || "").trim();
+          } else if (project.includes(' - ') || project.includes('-')) {
+            // fallback: split on first hyphen
+            const idx = project.indexOf('-');
+            if (idx > 0) {
+              project_description = project.slice(idx + 1).trim();
+              project = project.slice(0, idx).trim();
+            }
+          }
+        }
 
         // Prefer to find time within the same row (nested spans/tables) before using detail text
-        time = findTimeInRow(r) || extractTime((event || "") + " " + (project || ""));
+        time = findTimeInRow(r) || extractTime((event || "") + " " + (project || "") + " " + (project_description || ""));
 
-        speakers.push({ name: presenter, title: event, project, time });
+        speakers.push({ name: presenter, title: event, project, project_description, time });
       }
       agenda_items.push({ role, presenter, event });
     });
