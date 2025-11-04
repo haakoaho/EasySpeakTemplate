@@ -57,8 +57,31 @@ document.addEventListener("DOMContentLoaded", () => {
         meetingThemeInput.value.trim() ||
         finalAgenda.meeting_info.meeting_theme ||
         "N/A";
+      // Word of the Day field (optional)
+      const wordOfDayInput = document.getElementById("wordOfDay");
+      if (wordOfDayInput) {
+        finalAgenda.meeting_info.word_of_day = wordOfDayInput.value.trim();
+      }
+
       finalAgenda.structured_roles = edits.structured_roles;
       finalAgenda.speakers = edits.speakers;
+
+      // Ensure evaluator edits are written back into agenda_items and structured_roles
+      if (Array.isArray(finalAgenda.agenda_items)) {
+        finalAgenda.agenda_items.forEach((item, ai) => {
+          if ((item.role || "").toLowerCase().includes("evaluator")) {
+            // try to parse leading number to map to speaker index
+            const m = (item.role || "").match(/^(\d+)/);
+            const idx = m ? parseInt(m[1], 10) - 1 : -1;
+            if (idx >= 0 && edits.speakers[idx] && edits.speakers[idx].evaluator) {
+              item.presenter = edits.speakers[idx].evaluator;
+              // also update structured_roles entry for this role key
+              const key = (item.role || "").replace(/\s|&/g, "");
+              finalAgenda.structured_roles[key] = { presenter: item.presenter };
+            }
+          }
+        });
+      }
 
       downloadAgendaFile(finalAgenda, "agenda.json");
       await updateForms(finalAgenda);
@@ -173,9 +196,15 @@ document.addEventListener("DOMContentLoaded", () => {
     speakersTitle.textContent = "Speeches";
     speakersEditor.appendChild(speakersTitle);
 
-    const evaluators = agenda.agenda_items.filter((item) =>
-      item.role.toLowerCase().includes("evaluator")
-    );
+    // Build a map from speaker index -> evaluator agenda item (if present)
+    const evaluatorItemMap = {};
+    agenda.agenda_items.forEach((item, ai) => {
+      if ((item.role || "").toLowerCase().includes("evaluator")) {
+        const m = (item.role || "").match(/^(\d+)/);
+        const idx = m ? parseInt(m[1], 10) - 1 : -1;
+        evaluatorItemMap[idx] = { presenter: item.presenter, aiIndex: ai, role: item.role };
+      }
+    });
 
     (agenda.speakers || []).forEach((speaker, index) => {
       const card = document.createElement("div");
@@ -186,13 +215,12 @@ document.addEventListener("DOMContentLoaded", () => {
       cardTitle.textContent = `Speech ${index + 1}`;
       card.appendChild(cardTitle);
 
-      const evaluator = evaluators.find((e) =>
-        e.role.startsWith(`${index + 1}`)
-      );
-      const evaluatorName = evaluator ? evaluator.presenter : "";
+      const evaluatorName = evaluatorItemMap[index]?.presenter || "";
 
       card.appendChild(createLabeledInput("Speaker", speaker.name, "name"));
       card.appendChild(createLabeledInput("Speech Title", speaker.title, "title"));
+      card.appendChild(createLabeledInput("Project", speaker.project || "", "project"));
+      card.appendChild(createLabeledInput("Time", speaker.time || "", "time"));
       card.appendChild(createLabeledInput("Evaluator", evaluatorName, "evaluator"));
       speakersEditor.appendChild(card);
     });
@@ -249,18 +277,86 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const speakers = [];
     speakersEditor.querySelectorAll(".speech-card").forEach((card) => {
-      const name = card.querySelector('input[data-key="name"]').value.trim();
-      const title = card.querySelector('input[data-key="title"]').value.trim();
-      const evaluator = card.querySelector('input[data-key="evaluator"]').value.trim();
-      const idx = card.dataset.index;
-      const original = lastParsedAgenda.speakers[idx] || {};
-      speakers.push({ ...original, name, title, evaluator });
+      const name = (card.querySelector('input[data-key="name"]')?.value || "").trim();
+      const title = (card.querySelector('input[data-key="title"]')?.value || "").trim();
+      const project = (card.querySelector('input[data-key="project"]')?.value || "").trim();
+      const time = (card.querySelector('input[data-key="time"]')?.value || "").trim();
+      const evaluator = (card.querySelector('input[data-key="evaluator"]')?.value || "").trim();
+      const idx = parseInt(card.dataset.index, 10);
+      const original = (lastParsedAgenda && lastParsedAgenda.speakers && lastParsedAgenda.speakers[idx]) || {};
+      speakers.push({ ...original, name, title, project, time, evaluator });
     });
 
     return { structured_roles, speakers };
   }
 
   // --- Scraping and helper functions ---
+  function extractTime(text) {
+    if (!text) return "";
+    // Try several patterns in order: range with colon, range without colon, single time with colon, minutes
+    const patterns = [
+      /(\d{1,2}:\d{2})\s*(?:to|\-|–|—)\s*(\d{1,2}:\d{2})/i, // 5:00 to 7:00 or 5:00-7:00
+      /(\d{1,2})\s*(?:to|\-|–|—)\s*(\d{1,2})\s*min/i, // 5-7 min
+      /(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)/i, // 6:00 or 6:00 PM
+      /(\d{1,2})\s*min/i, // 5 min
+      /(\d{1,2}:\d{2})/i,
+    ];
+    for (const re of patterns) {
+      const m = text.match(re);
+      if (m) {
+        // return the matched portion (join groups if range)
+        if (m[2]) return (m[1] + (m[2] ? ' to ' + m[2] : '')).trim();
+        return m[1].trim();
+      }
+    }
+    return "";
+  }
+  
+  function findTimeInRow(row) {
+    if (!row) return "";
+    // Prefer time data inside a td that contains a nested table (common structure),
+    // or otherwise a td after the title column. This avoids capturing the agenda slot
+    // time (first td, e.g. '18:24').
+    const tds = Array.from(row.querySelectorAll('td'));
+    const timeRegex = /(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?|\d{1,2}\s*min)/g;
+
+    // 1) look for a td that contains a nested table
+    for (const td of tds) {
+      if (td.querySelector('table')) {
+        const found = collectTimesFromElement(td, timeRegex);
+        if (found.length >= 2) return `${found[0]} to ${found[found.length - 1]}`;
+        if (found.length === 1) return found[0];
+      }
+    }
+
+    // 2) look for td after the presenter/title columns (skip the first td which is slot time)
+    for (let i = 1; i < tds.length; i++) {
+      const td = tds[i];
+      const found = collectTimesFromElement(td, timeRegex);
+      if (found.length >= 2) return `${found[0]} to ${found[found.length - 1]}`;
+      if (found.length === 1) return found[0];
+    }
+
+    // 3) fallback: scan the whole row but ignore the first td's text to avoid the slot time
+    const rowText = tds.slice(1).map(td => td.textContent || '').join(' ');
+    return extractTime(rowText || row.textContent || '');
+  }
+
+  function collectTimesFromElement(el, timeRegex) {
+    const found = [];
+    const candidates = Array.from(el.querySelectorAll('span, td'));
+    for (const c of candidates) {
+      const text = (c.textContent || '').trim();
+      if (!text) continue;
+      let m;
+      // reset lastIndex for global regex reuse
+      timeRegex.lastIndex = 0;
+      while ((m = timeRegex.exec(text)) !== null) {
+        found.push(m[0].trim());
+      }
+    }
+    return found;
+  }
   function getStructuredRoles(meetingData) {
     const roles = {};
     for (const item of meetingData.agenda_items) {
@@ -296,8 +392,52 @@ document.addEventListener("DOMContentLoaded", () => {
       const role = tds[1]?.innerText.trim() || "";
       const presenter = tds[2]?.innerText.trim() || "";
       const event = tds[3]?.innerText.trim() || "";
+
+      // If speaker row, try to capture an immediate detail row (project/time).
+      // Prefer an <i> element inside the row as the pathway/project title. If not present,
+      // fall back to the next detail row heuristics.
       if (role.includes("Speaker")) {
-        speakers.push({ name: presenter, title: event });
+        let project = "";
+        let time = "";
+
+        // Prefer emphasized content inside the current row (i, em, strong) as the Pathways title
+        const italic = r.querySelector("i, em, strong, b");
+        if (italic && italic.textContent && italic.textContent.trim()) {
+          project = italic.textContent.trim();
+        } else {
+          // fallback to looking at an immediate detail sibling row
+          const next = r.nextElementSibling;
+          if (next) {
+            const nextTds = next.querySelectorAll("td");
+            if (nextTds.length <= 2 || nextTds.length < 5) {
+              // Use innerHTML and split on <br> to avoid concatenating lines when innerText joins them
+              const html = next.innerHTML || "";
+              const firstPartHtml = html.split(/<br\s*\/?/i)[0] || html;
+              // create a temporary element to strip HTML tags safely
+              const tmp = document.createElement('div');
+              tmp.innerHTML = firstPartHtml;
+              const candidate = (tmp.textContent || tmp.innerText || '').trim();
+              if (candidate) {
+                // cut before common description starters to avoid long descriptions
+                const descStarters = ["Deliver", "Demonstrate", "Demonstrates", "Provides", "Learn", "Learners", "Participants", "This project", "By the end", "Tell", "Use", "Explain", "Discuss"];
+                let cutCandidate = candidate;
+                for (const starter of descStarters) {
+                  const idx = cutCandidate.indexOf(starter);
+                  if (idx > 10) {
+                    cutCandidate = cutCandidate.slice(0, idx).trim();
+                    break;
+                  }
+                }
+                project = cutCandidate;
+              }
+            }
+          }
+        }
+
+        // Prefer to find time within the same row (nested spans/tables) before using detail text
+        time = findTimeInRow(r) || extractTime((event || "") + " " + (project || ""));
+
+        speakers.push({ name: presenter, title: event, project, time });
       }
       agenda_items.push({ role, presenter, event });
     });
