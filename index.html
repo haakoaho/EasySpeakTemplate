@@ -12,11 +12,27 @@
 
       <div class="instructions">
         <p>
-          <strong>1.</strong> Open the EasySpeak agenda and copy its HTML
-          (<code>F12 → Console → copy(document.documentElement.outerHTML)</code>)
+          <strong>1.</strong> Open the EasySpeak agenda and copy its HTML (
+          <span class="command-row">
+            <span class="cmd-label">F12 → Console →</span>
+            <code id="consoleCommand">copy(document.documentElement.outerHTML)</code>
+            <button class="copy-btn" data-copy-target="consoleCommand" aria-label="Copy command">Copy</button>
+          </span>
+          )
         </p>
         <p><strong>2.</strong> Paste the HTML into the text area below.</p>
       </div>
+
+      <img
+        src="public/AgendaGo.png"
+        alt="Go to the EasySpeak agenda page"
+        class="instructions_image"
+      />
+      <img
+        src="public/ConsoleCommand.png"
+        alt="Browser console command"
+        class="instructions_image"
+      />
 
       <div class="form-group">
         <label for="meetingTheme">Meeting Theme (Optional)</label>
@@ -36,7 +52,6 @@
         ></textarea>
       </div>
 
-
       <div id="editorContainer" style="display: none">
         <h2>Edit Agenda Roles & Speakers</h2>
 
@@ -46,8 +61,10 @@
           <label for="wordOfDay">Word of the Day (editable)</label>
           <input type="text" id="wordOfDay" placeholder="Word of the Day" />
         </div>
-        
-        <button id="generateBtn" type="button">Save & Generate Updated Forms</button>
+
+        <button id="generateBtn" type="button">
+          Save & Generate Updated Forms
+        </button>
       </div>
 
       <div id="status"></div>

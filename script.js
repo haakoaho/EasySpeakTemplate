@@ -9,6 +9,47 @@ document.addEventListener("DOMContentLoaded", () => {
   let lastParsedAgenda = null;
   let hasParsed = false;
 
+  // --- Copy-to-clipboard setup for inline command(s) ---
+  function setupCopyButtons() {
+    const copyButtons = document.querySelectorAll('.copy-btn');
+    copyButtons.forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const targetId = btn.dataset.copyTarget;
+        const targetEl = targetId ? document.getElementById(targetId) : null;
+        const text = targetEl ? (targetEl.textContent || targetEl.innerText || '').trim() : btn.dataset.copyText || '';
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            // fallback for older browsers
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          }
+          const orig = btn.textContent;
+          btn.textContent = 'Copied!';
+          btn.disabled = true;
+          setTimeout(() => {
+            btn.textContent = orig;
+            btn.disabled = false;
+          }, 1400);
+        } catch (err) {
+          console.error('Copy failed', err);
+          btn.textContent = 'Failed';
+          setTimeout(() => (btn.textContent = 'Copy'), 1400);
+        }
+      });
+    });
+  }
+
+  // Initialize copy buttons (if any)
+  setupCopyButtons();
+
   // --- Auto-parse when HTML is pasted ---
   htmlContentInput.addEventListener("paste", () => {
     setTimeout(() => {

@@ -155,3 +155,42 @@ button:hover {
     margin-bottom: 15px;
     color: #333;
 }
+
+/* Command copy UI */
+.command-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+}
+
+.command-row .cmd-label {
+  color: #555;
+  font-weight: 600;
+  margin-right: 0.4rem;
+}
+
+code#consoleCommand {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace;
+  font-size: 0.95em;
+}
+
+.copy-btn {
+  padding: 6px 10px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.copy-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
