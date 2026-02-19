@@ -170,6 +170,8 @@ document.addEventListener("DOMContentLoaded", () => {
       .map((s) => normalize(s.name))
       .filter((n) => n && n !== "TBA");
 
+    const speakersNoIcebreakers = speakers.filter((n) => n.project_description !== "Icebreaker");
+
     const evaluators = (meetingData.speakers || [])
       .map((s) => normalize(s.evaluator))
       .filter((n) => n && n !== "TBA");
@@ -192,7 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     await Promise.all([
       postData(urls.feedback_form, speakerList),
-      postData(urls.speaker_form, speakerList),
+      postData(urls.speaker_form, speakersNoIcebreakers),
       postData(urls.evaluator_form, evaluatorList),
       postData(urls.table_topics_form, tableTopicsList),
     ]);
