@@ -1,4 +1,32 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // --- Extension suggestion banner ---
+  const isFirefox = navigator.userAgent.toLowerCase().includes("firefox");
+  const bannerEl = document.getElementById("extensionBanner");
+  if (bannerEl) {
+    if (isFirefox) {
+      bannerEl.innerHTML = `
+        🦊 <strong>Firefox detected!</strong>
+        Skip the copy-paste entirely —
+        <a href="https://haakoaho.github.io/EasySpeakTemplate/install" target="_blank">install the EasySpeak Importer extension</a>
+        and import agendas in one click.
+        <button class="banner-dismiss" id="dismissBanner">✕</button>
+      `;
+      bannerEl.style.display = "flex";
+    } else {
+      bannerEl.innerHTML = `
+        💡 <strong>Tip:</strong> Use <a href="https://www.mozilla.org/firefox/" target="_blank">Firefox</a>
+        with our
+        <a href="https://haakoaho.github.io/EasySpeakTemplate/install" target="_blank">EasySpeak Importer extension</a>
+        to skip the copy-paste step entirely.
+        <button class="banner-dismiss" id="dismissBanner">✕</button>
+      `;
+      bannerEl.style.display = "flex";
+    }
+    document.getElementById("dismissBanner")?.addEventListener("click", () => {
+      bannerEl.style.display = "none";
+    });
+  }
+
   const generateBtn = document.getElementById("generateBtn");
   const htmlContentInput = document.getElementById("htmlContent");
   const meetingThemeInput = document.getElementById("meetingTheme");
@@ -21,7 +49,6 @@ document.addEventListener("DOMContentLoaded", () => {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(text);
           } else {
-            // fallback for older browsers
             const ta = document.createElement('textarea');
             ta.value = text;
             ta.style.position = 'fixed';
@@ -47,7 +74,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Initialize copy buttons (if any)
   setupCopyButtons();
 
   // --- Auto-parse when HTML is pasted ---
@@ -65,7 +91,6 @@ document.addEventListener("DOMContentLoaded", () => {
         lastParsedAgenda = agendaObject;
         hasParsed = true;
 
-        // Fill meeting theme if blank
         agendaObject.meeting_info.meeting_theme =
           meetingThemeInput.value.trim() ||
           agendaObject.meeting_info.meeting_theme ||
@@ -98,7 +123,6 @@ document.addEventListener("DOMContentLoaded", () => {
         meetingThemeInput.value.trim() ||
         finalAgenda.meeting_info.meeting_theme ||
         "N/A";
-      // Word of the Day field (optional)
       const wordOfDayInput = document.getElementById("wordOfDay");
       if (wordOfDayInput) {
         finalAgenda.meeting_info.word_of_day = wordOfDayInput.value.trim();
@@ -107,16 +131,13 @@ document.addEventListener("DOMContentLoaded", () => {
       finalAgenda.structured_roles = edits.structured_roles;
       finalAgenda.speakers = edits.speakers;
 
-      // Ensure evaluator edits are written back into agenda_items and structured_roles
       if (Array.isArray(finalAgenda.agenda_items)) {
         finalAgenda.agenda_items.forEach((item, ai) => {
           if ((item.role || "").toLowerCase().includes("evaluator")) {
-            // try to parse leading number to map to speaker index
             const m = (item.role || "").match(/^(\d+)/);
             const idx = m ? parseInt(m[1], 10) - 1 : -1;
             if (idx >= 0 && edits.speakers[idx] && edits.speakers[idx].evaluator) {
               item.presenter = edits.speakers[idx].evaluator;
-              // also update structured_roles entry for this role key
               const key = (item.role || "").replace(/\s|&/g, "");
               finalAgenda.structured_roles[key] = { presenter: item.presenter };
             }
@@ -221,7 +242,6 @@ document.addEventListener("DOMContentLoaded", () => {
     rolesEditor.innerHTML = "";
     speakersEditor.innerHTML = "";
 
-    // Roles
     const rolesTitle = document.createElement("h3");
     rolesTitle.textContent = "Meeting Roles";
     rolesEditor.appendChild(rolesTitle);
@@ -234,12 +254,10 @@ document.addEventListener("DOMContentLoaded", () => {
       rolesEditor.appendChild(row);
     });
 
-    // Speakers
     const speakersTitle = document.createElement("h3");
     speakersTitle.textContent = "Speeches";
     speakersEditor.appendChild(speakersTitle);
 
-    // Build a map from speaker index -> evaluator agenda item (if present)
     const evaluatorItemMap = {};
     agenda.agenda_items.forEach((item, ai) => {
       if ((item.role || "").toLowerCase().includes("evaluator")) {
@@ -262,14 +280,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       card.appendChild(createLabeledInput("Speaker", speaker.name, "name"));
       card.appendChild(createLabeledInput("Speech Title", speaker.title, "title"));
-  card.appendChild(createLabeledInput("Project", speaker.project || "", "project"));
-  card.appendChild(createLabeledInput("Project Description", speaker.project_description || "", "project_description"));
+      card.appendChild(createLabeledInput("Project", speaker.project || "", "project"));
+      card.appendChild(createLabeledInput("Project Description", speaker.project_description || "", "project_description"));
       card.appendChild(createLabeledInput("Time", speaker.time || "", "time"));
       card.appendChild(createLabeledInput("Evaluator", evaluatorName, "evaluator"));
       speakersEditor.appendChild(card);
     });
 
-    // Add Speaker button
     const addSpeakerBtn = document.createElement("button");
     addSpeakerBtn.textContent = "+ Add Speaker";
     addSpeakerBtn.type = "button";
@@ -323,9 +340,9 @@ document.addEventListener("DOMContentLoaded", () => {
     speakersEditor.querySelectorAll(".speech-card").forEach((card) => {
       const name = (card.querySelector('input[data-key="name"]')?.value || "").trim();
       const title = (card.querySelector('input[data-key="title"]')?.value || "").trim();
-  const project = (card.querySelector('input[data-key="project"]')?.value || "").trim();
-  const project_description = (card.querySelector('input[data-key="project_description"]')?.value || "").trim();
-  const time = (card.querySelector('input[data-key="time"]')?.value || "").trim();
+      const project = (card.querySelector('input[data-key="project"]')?.value || "").trim();
+      const project_description = (card.querySelector('input[data-key="project_description"]')?.value || "").trim();
+      const time = (card.querySelector('input[data-key="time"]')?.value || "").trim();
       const evaluator = (card.querySelector('input[data-key="evaluator"]')?.value || "").trim();
       const idx = parseInt(card.dataset.index, 10);
       const original = (lastParsedAgenda && lastParsedAgenda.speakers && lastParsedAgenda.speakers[idx]) || {};
@@ -338,34 +355,28 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Scraping and helper functions ---
   function extractTime(text) {
     if (!text) return "";
-    // Try several patterns in order: range with colon, range without colon, single time with colon, minutes
     const patterns = [
-      /(\d{1,2}:\d{2})\s*(?:to|\-|–|—)\s*(\d{1,2}:\d{2})/i, // 5:00 to 7:00 or 5:00-7:00
-      /(\d{1,2})\s*(?:to|\-|–|—)\s*(\d{1,2})\s*min/i, // 5-7 min
-      /(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)/i, // 6:00 or 6:00 PM
-      /(\d{1,2})\s*min/i, // 5 min
+      /(\d{1,2}:\d{2})\s*(?:to|\-|–|—)\s*(\d{1,2}:\d{2})/i,
+      /(\d{1,2})\s*(?:to|\-|–|—)\s*(\d{1,2})\s*min/i,
+      /(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)/i,
+      /(\d{1,2})\s*min/i,
       /(\d{1,2}:\d{2})/i,
     ];
     for (const re of patterns) {
       const m = text.match(re);
       if (m) {
-        // return the matched portion (join groups if range)
         if (m[2]) return (m[1] + (m[2] ? ' to ' + m[2] : '')).trim();
         return m[1].trim();
       }
     }
     return "";
   }
-  
+
   function findTimeInRow(row) {
     if (!row) return "";
-    // Prefer time data inside a td that contains a nested table (common structure),
-    // or otherwise a td after the title column. This avoids capturing the agenda slot
-    // time (first td, e.g. '18:24').
     const tds = Array.from(row.querySelectorAll('td'));
     const timeRegex = /(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?|\d{1,2}\s*min)/g;
 
-    // 1) look for a td that contains a nested table
     for (const td of tds) {
       if (td.querySelector('table')) {
         const found = collectTimesFromElement(td, timeRegex);
@@ -374,7 +385,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // 2) look for td after the presenter/title columns (skip the first td which is slot time)
     for (let i = 1; i < tds.length; i++) {
       const td = tds[i];
       const found = collectTimesFromElement(td, timeRegex);
@@ -382,7 +392,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (found.length === 1) return found[0];
     }
 
-    // 3) fallback: scan the whole row but ignore the first td's text to avoid the slot time
     const rowText = tds.slice(1).map(td => td.textContent || '').join(' ');
     return extractTime(rowText || row.textContent || '');
   }
@@ -394,7 +403,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const text = (c.textContent || '').trim();
       if (!text) continue;
       let m;
-      // reset lastIndex for global regex reuse
       timeRegex.lastIndex = 0;
       while ((m = timeRegex.exec(text)) !== null) {
         found.push(m[0].trim());
@@ -402,6 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     return found;
   }
+
   function getStructuredRoles(meetingData) {
     const roles = {};
     for (const item of meetingData.agenda_items) {
@@ -438,32 +447,24 @@ document.addEventListener("DOMContentLoaded", () => {
       const presenter = tds[2]?.innerText.trim() || "";
       const event = tds[3]?.innerText.trim() || "";
 
-      // If speaker row, try to capture an immediate detail row (project/time).
-      // Prefer an <i> element inside the row as the pathway/project title. If not present,
-      // fall back to the next detail row heuristics.
       if (role.includes("Speaker")) {
         let project = "";
         let time = "";
 
-        // Prefer emphasized content inside the current row (i, em, strong) as the Pathways title
         const italic = r.querySelector("i, em, strong, b");
         if (italic && italic.textContent && italic.textContent.trim()) {
           project = italic.textContent.trim();
         } else {
-          // fallback to looking at an immediate detail sibling row
           const next = r.nextElementSibling;
           if (next) {
             const nextTds = next.querySelectorAll("td");
             if (nextTds.length <= 2 || nextTds.length < 5) {
-              // Use innerHTML and split on <br> to avoid concatenating lines when innerText joins them
               const html = next.innerHTML || "";
               const firstPartHtml = html.split(/<br\s*\/?/i)[0] || html;
-              // create a temporary element to strip HTML tags safely
               const tmp = document.createElement('div');
               tmp.innerHTML = firstPartHtml;
               const candidate = (tmp.textContent || tmp.innerText || '').trim();
               if (candidate) {
-                // cut before common description starters to avoid long descriptions
                 const descStarters = ["Deliver", "Demonstrate", "Demonstrates", "Provides", "Learn", "Learners", "Participants", "This project", "By the end", "Tell", "Use", "Explain", "Discuss"];
                 let cutCandidate = candidate;
                 for (const starter of descStarters) {
@@ -478,7 +479,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           }
         }
-        // If project contains a dash, split into short project title and description
+
         let project_description = "";
         if (project) {
           const splitRe = /\s[-–—]\s/;
@@ -487,7 +488,6 @@ document.addEventListener("DOMContentLoaded", () => {
             project = (parts[0] || "").trim();
             project_description = (parts.slice(1).join(' - ') || "").trim();
           } else if (project.includes(' - ') || project.includes('-')) {
-            // fallback: split on first hyphen
             const idx = project.indexOf('-');
             if (idx > 0) {
               project_description = project.slice(idx + 1).trim();
@@ -496,7 +496,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         }
 
-        // Prefer to find time within the same row (nested spans/tables) before using detail text
         time = findTimeInRow(r) || extractTime((event || "") + " " + (project || "") + " " + (project_description || ""));
 
         speakers.push({ name: presenter, title: event, project, project_description, time });
