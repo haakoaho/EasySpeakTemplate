@@ -1,0 +1,35 @@
+{
+  "manifest_version": 2,
+  "name": "EasySpeak Agenda Importer",
+  "version": "1.8",
+  "description": "Import EasySpeak agendas into the Oslo Toastmasters slides with one click",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "https://haakoaho.github.io/*",
+    "windows"
+  ],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    "editor.html"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "easyspeak-importer@oslo-toastmasters",
+      "strict_min_version": "109.0"
+    }
+  }
+}
